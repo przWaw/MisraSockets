@@ -1,14 +1,29 @@
 package main
 
 import (
-	"fmt"
+	"MisraSockets/MisraSocket"
+	"MisraSockets/util"
+	"sync"
 )
 
 func main() {
-	s := "gopher"
-	fmt.Println("Hello and welcome, %s!", s)
+	listen, send, initiator := util.AppInput()
 
-	for i := 1; i <= 5; i++ {
-		fmt.Println("i =", 100/i)
+	misraSocket := MisraSocket.NewMisraSocket()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	if *initiator {
+		go misraSocket.Listen(*listen, &wg)
+		misraSocket.InitOutgoingConnection(*send)
+		misraSocket.SendInitMessage()
+	} else {
+		misraSocket.Listen(*listen, &wg)
+		misraSocket.InitOutgoingConnection(*send)
 	}
+
+	wg.Wait()
+
+	misraSocket.HandleMessages()
 }
