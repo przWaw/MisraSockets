@@ -128,49 +128,27 @@ func (socket *MisraSocket) Listen(listenPort string, wg *sync.WaitGroup) {
 }
 
 func (socket *MisraSocket) HandleMessages() {
-	scanner := bufio.NewScanner(*socket.listenConn)
+	go socket.readFromConnection()
 	for {
-		err := (*socket.listenConn).SetReadDeadline(time.Time{})
-		if err != nil {
-			util.LogError(err.Error())
-		}
 		switch socket.storedToken {
 		case NONE:
-			scanner.Scan()
-			token, err := strconv.ParseInt(scanner.Text(), 10, 64)
-			if err != nil {
-				util.LogError(err.Error())
-				continue
-			}
-			socket.receiveToken(token)
 			continue
 		case PING:
 			util.LogSuccess("Ping token acquired, entering critical section")
 			time.Sleep(1 * time.Second)
 			util.LogSuccess("Leaving critical section")
-			err := (*socket.listenConn).SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-			if err != nil {
-				util.LogError(err.Error())
-			}
-			if scanner.Scan() {
-				token, err := strconv.ParseInt(scanner.Text(), 10, 64)
-				if err != nil {
-					util.LogError(err.Error())
-					continue
-				}
-				socket.receiveToken(token)
-				continue
-			} else {
+			if socket.storedToken == PING {
 				socket.send(PING_TOKEN)
+			} else {
+				continue
 			}
-
 		case PONG:
 			socket.send(PONG_TOKEN)
 		case BOTH:
 			util.LogInfo("Both token acquired, incarnating")
 			socket.incarnate()
 			util.LogInfo("New token values PING: %d, PONG: %d", socket.ping, socket.pong)
-			socket.send(PONG_TOKEN)
+			socket.send(PING_TOKEN)
 			socket.send(PONG_TOKEN)
 		}
 
@@ -186,10 +164,12 @@ func (socket *MisraSocket) receiveToken(token int64) {
 		if socket.m > 0 {
 			util.LogWarn("Pong token lost, proceed with regeneration")
 			socket.regenerateTokens()
+			return
 		}
 		if socket.m < 0 {
 			util.LogWarn("Ping token lost, proceed with regeneration")
 			socket.regenerateTokens()
+			return
 		}
 	}
 	if token > 0 {
@@ -203,6 +183,7 @@ func (socket *MisraSocket) receiveToken(token int64) {
 		case PING, BOTH:
 			util.LogError("Something went very wrong!!!")
 		}
+		return
 	}
 	if token < 0 {
 		socket.pong = token
@@ -215,6 +196,7 @@ func (socket *MisraSocket) receiveToken(token int64) {
 		case PONG, BOTH:
 			util.LogError("Something went very wrong!!!")
 		}
+		return
 	}
 }
 
@@ -226,4 +208,18 @@ func (socket *MisraSocket) regenerateTokens() {
 func (socket *MisraSocket) incarnate() {
 	socket.ping++
 	socket.pong = -socket.ping
+}
+
+func (socket *MisraSocket) readFromConnection() {
+	scanner := bufio.NewScanner(*socket.listenConn)
+	for {
+		scanner.Scan()
+		token, err := strconv.ParseInt(scanner.Text(), 10, 64)
+		if err != nil {
+			util.LogError(err.Error())
+			continue
+		}
+		socket.receiveToken(token)
+		continue
+	}
 }
