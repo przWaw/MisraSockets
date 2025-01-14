@@ -34,6 +34,7 @@ type MisraSocket struct {
 	ping           int64
 	pong           int64
 	storedToken    StoredToken
+	readChannel    chan int64
 }
 
 func NewMisraSocket() *MisraSocket {
@@ -44,6 +45,7 @@ func NewMisraSocket() *MisraSocket {
 		ping:           1,
 		pong:           -1,
 		storedToken:    NONE,
+		readChannel:    make(chan int64, 2),
 	}
 }
 
@@ -76,14 +78,14 @@ func (socket *MisraSocket) send(tokenType TokenType) {
 			socket.storedToken = PING
 		}
 	}
-	var sendedType string
+	var typeToSend string
 	switch tokenType {
 	case PING_TOKEN:
-		sendedType = "PING"
+		typeToSend = "PING"
 	case PONG_TOKEN:
-		sendedType = "PONG"
+		typeToSend = "PONG"
 	}
-	util.LogSuccess("Token send: %s", sendedType)
+	util.LogSuccess("Token send: %s", typeToSend)
 }
 
 func (socket *MisraSocket) InitOutgoingConnection(sendAddress string) {
@@ -132,15 +134,20 @@ func (socket *MisraSocket) HandleMessages() {
 	for {
 		switch socket.storedToken {
 		case NONE:
-			continue
+			select {
+			case token := <-socket.readChannel:
+				socket.receiveToken(token)
+			}
 		case PING:
 			util.LogSuccess("Ping token acquired, entering critical section")
 			time.Sleep(1 * time.Second)
 			util.LogSuccess("Leaving critical section")
-			if socket.storedToken == PING {
-				socket.send(PING_TOKEN)
-			} else {
+			select {
+			case token := <-socket.readChannel:
+				socket.receiveToken(token)
 				continue
+			default:
+				socket.send(PING_TOKEN)
 			}
 		case PONG:
 			socket.send(PONG_TOKEN)
@@ -201,7 +208,6 @@ func (socket *MisraSocket) receiveToken(token int64) {
 }
 
 func (socket *MisraSocket) regenerateTokens() {
-	socket.incarnate()
 	socket.storedToken = BOTH
 }
 
@@ -219,7 +225,7 @@ func (socket *MisraSocket) readFromConnection() {
 			util.LogError(err.Error())
 			continue
 		}
-		socket.receiveToken(token)
+		socket.readChannel <- token
 		continue
 	}
 }
