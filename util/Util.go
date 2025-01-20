@@ -22,10 +22,11 @@ func Abs(x int64) int64 {
 	return x
 }
 
-func AppInput() (*string, *string, *bool) {
+func AppInput() (*string, *string, *bool, *float64) {
 	listenPort := flag.String("l", "", "Port to listen on")
 	sendAddress := flag.String("s", "", "Address to send to")
 	startAsListener := flag.Bool("i", false, "Start as initiator")
+	pingLost := flag.Float64("p", 0, "Ping lost probability (0, 1)")
 	flag.Parse()
 
 	if *listenPort == "" || *sendAddress == "" {
@@ -33,7 +34,7 @@ func AppInput() (*string, *string, *bool) {
 		os.Exit(1)
 	}
 
-	return listenPort, sendAddress, startAsListener
+	return listenPort, sendAddress, startAsListener, pingLost
 }
 
 func Log(message string, color string, args ...interface{}) {

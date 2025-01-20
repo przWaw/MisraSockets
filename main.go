@@ -7,9 +7,9 @@ import (
 )
 
 func main() {
-	listen, send, initiator := util.AppInput()
+	listen, send, initiator, pingLost := util.AppInput()
 
-	misraSocket := MisraSocket.NewMisraSocket()
+	misraSocket := MisraSocket.NewMisraSocket(pingLost)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

@@ -4,6 +4,7 @@ import (
 	"MisraSockets/util"
 	"bufio"
 	"fmt"
+	"golang.org/x/exp/rand"
 	"net"
 	"os"
 	"strconv"
@@ -33,11 +34,12 @@ type MisraSocket struct {
 	m              int64
 	ping           int64
 	pong           int64
+	pingLost       float64
 	storedToken    StoredToken
 	readChannel    chan int64
 }
 
-func NewMisraSocket() *MisraSocket {
+func NewMisraSocket(pingLost *float64) *MisraSocket {
 	return &MisraSocket{
 		sendConnection: nil,
 		listenConn:     nil,
@@ -46,16 +48,19 @@ func NewMisraSocket() *MisraSocket {
 		pong:           -1,
 		storedToken:    NONE,
 		readChannel:    make(chan int64, 2),
+		pingLost:       *pingLost,
 	}
 }
 
 func (socket *MisraSocket) send(tokenType TokenType) {
 	switch tokenType {
 	case PING_TOKEN:
-		_, err := fmt.Fprintln(*socket.sendConnection, socket.ping)
-		if err != nil {
-			util.LogError(err.Error())
-			return
+		if !(rand.Float64() < socket.pingLost) {
+			_, err := fmt.Fprintln(*socket.sendConnection, socket.ping)
+			if err != nil {
+				util.LogError(err.Error())
+				return
+			}
 		}
 		socket.m = socket.ping
 		if socket.storedToken == PING {
@@ -85,7 +90,7 @@ func (socket *MisraSocket) send(tokenType TokenType) {
 	case PONG_TOKEN:
 		typeToSend = "PONG"
 	}
-	util.LogSuccess("Token send: %s", typeToSend)
+	util.LogSuccess("Token send: %s, value: %d", typeToSend, socket.m)
 }
 
 func (socket *MisraSocket) InitOutgoingConnection(sendAddress string) {
@@ -223,7 +228,7 @@ func (socket *MisraSocket) readFromConnection() {
 		token, err := strconv.ParseInt(scanner.Text(), 10, 64)
 		if err != nil {
 			util.LogError(err.Error())
-			continue
+			os.Exit(1)
 		}
 		socket.readChannel <- token
 		continue
