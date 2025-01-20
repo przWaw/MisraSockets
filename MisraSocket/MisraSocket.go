@@ -4,7 +4,7 @@ import (
 	"MisraSockets/util"
 	"bufio"
 	"fmt"
-	"golang.org/x/exp/rand"
+	"math/rand"
 	"net"
 	"os"
 	"strconv"
